@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABYSS Station — Глубоководная база</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%2300d4ff'/%3E%3Cstop offset='100%25' style='stop-color:%2300ff88'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='45' fill='%23001428'/%3E%3Ccircle cx='50' cy='50' r='40' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M30 50 Q50 30 70 50 Q50 70 30 50' fill='none' stroke='%2300d4ff' stroke-width='2'/%3E%3Ccircle cx='50' cy='50' r='8' fill='%2300ff88'/%3E%3Ccircle cx='35' cy='45' r='3' fill='%2300d4ff'/%3E%3Ccircle cx='65' cy='55' r='3' fill='%2300d4ff'/%3E%3C/svg%3E">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --ocean-cyan: #00d4ff; --bio-green: #00ff88; --warning-orange: #ff9f43; }
+        body { overflow: hidden; background: #0a1628; font-family: 'Exo 2', sans-serif; }
+        #canvas-container { position: fixed; inset: 0; z-index: 1; }
+        #loading-screen { position: fixed; inset: 0; background: linear-gradient(180deg, #000810 0%, #0a1628 50%, #051520 100%); z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 1s ease, visibility 1s ease; }
+        #loading-screen.hidden { opacity: 0; visibility: hidden; }
+        .loading-title { font-family: 'Orbitron', monospace; font-size: clamp(2.5rem, 10vw, 5rem); font-weight: 900; color: var(--ocean-cyan); text-shadow: 0 0 60px rgba(0, 212, 255, 0.8); letter-spacing: 0.4em; }
+        .loading-subtitle { font-size: 0.9rem; color: rgba(0, 212, 255, 0.6); letter-spacing: 0.5em; margin-top: 15px; }
+        .loading-depth { display: flex; align-items: center; gap: 20px; margin: 40px 0; }
+        .depth-label { font-family: 'Orbitron', monospace; font-size: 0.8rem; color: rgba(255, 255, 255, 0.4); letter-spacing: 0.2em; }
+        .depth-value { font-family: 'Orbitron', monospace; font-size: 2rem; color: var(--warning-orange); text-shadow: 0 0 20px rgba(255, 159, 67, 0.5); }
+        .loading-bar-container { width: 350px; height: 4px; background: rgba(0, 212, 255, 0.1); border-radius: 2px; }
+        .loading-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--ocean-cyan), var(--bio-green)); box-shadow: 0 0 20px var(--ocean-cyan); transition: width 0.3s ease; }
+        .loading-status { font-size: 0.75rem; color: rgba(255, 255, 255, 0.3); letter-spacing: 0.3em; margin-top: 20px; }
+        .loading-bubbles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+        .bubble { position: absolute; bottom: -20px; background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent); border-radius: 50%; animation: rise linear infinite; }
+        @keyframes rise { 0% { transform: translateY(0) scale(1); opacity: 0.6; } 100% { transform: translateY(-100vh) scale(0.5); opacity: 0; } }
+        #ui-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+        .header { position: absolute; top: 30px; left: 40px; }
+        .station-name { font-family: 'Orbitron', monospace; font-size: 1.3rem; font-weight: 700; color: var(--ocean-cyan); text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); letter-spacing: 0.3em; }
+        .station-status { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+        .status-dot { width: 8px; height: 8px; background: var(--bio-green); border-radius: 50%; box-shadow: 0 0 10px var(--bio-green); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+        .status-text { font-size: 0.7rem; color: rgba(255, 255, 255, 0.5); letter-spacing: 0.2em; }
+        .depth-meter { position: absolute; top: 30px; right: 40px; text-align: right; }
+        .depth-display { font-family: 'Orbitron', monospace; font-size: 2.5rem; font-weight: 700; color: var(--warning-orange); text-shadow: 0 0 30px rgba(255, 159, 67, 0.5); }
+        .depth-display span { font-size: 1rem; color: rgba(255, 159, 67, 0.6); }
+        .depth-info { font-size: 0.7rem; color: rgba(255, 255, 255, 0.4); letter-spacing: 0.15em; margin-top: 5px; }
+        .controls-panel { position: absolute; bottom: 40px; left: 40px; background: rgba(0, 20, 40, 0.6); border: 1px solid rgba(0, 212, 255, 0.2); padding: 20px; backdrop-filter: blur(10px); }
+        .controls-title { font-family: 'Orbitron', monospace; font-size: 0.7rem; color: var(--ocean-cyan); letter-spacing: 0.2em; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid rgba(0, 212, 255, 0.2); }
+        .control-row { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+        .control-key { font-family: 'Orbitron', monospace; padding: 5px 10px; background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.3); color: var(--ocean-cyan); font-size: 0.65rem; min-width: 45px; text-align: center; }
+        .control-desc { font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); }
+        .crosshair { position: fixed; top: 50%; left: 50%; width: 44px; height: 44px; margin-left: -22px; margin-top: -22px; pointer-events: none; z-index: 150; }
+        .crosshair-ring { width: 100%; height: 100%; border: 2px solid rgba(0, 212, 255, 0.6); border-radius: 50%; position: relative; transition: all 0.2s ease; }
+        .crosshair.active .crosshair-ring { border-color: var(--bio-green); box-shadow: 0 0 25px rgba(0, 255, 136, 0.5); transform: scale(1.25); }
+        .crosshair-line { position: absolute; background: rgba(0, 212, 255, 0.7); transition: all 0.2s ease; }
+        .crosshair.active .crosshair-line { background: var(--bio-green); }
+        .crosshair-line.h { width: 14px; height: 2px; top: 50%; margin-top: -1px; }
+        .crosshair-line.h.left { left: -18px; }
+        .crosshair-line.h.right { right: -18px; }
+        .crosshair-line.v { width: 2px; height: 14px; left: 50%; margin-left: -1px; }
+        .crosshair-line.v.top { top: -18px; }
+        .crosshair-line.v.bottom { bottom: -18px; }
+        .crosshair-dot { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; background: var(--ocean-cyan); border-radius: 50%; transition: all 0.2s ease; }
+        .crosshair.active .crosshair-dot { background: var(--bio-green); box-shadow: 0 0 12px var(--bio-green); }
+        .click-prompt { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 200; pointer-events: none; transition: opacity 0.5s ease; }
+        .click-prompt.hidden { opacity: 0; }
+        .click-prompt-text { font-family: 'Orbitron', monospace; font-size: 1.2rem; color: var(--ocean-cyan); text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); letter-spacing: 0.2em; animation: promptPulse 2s infinite; }
+        .click-prompt-sub { font-size: 0.8rem; color: rgba(255, 255, 255, 0.4); margin-top: 10px; }
+        @keyframes promptPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .object-label { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -85px); padding: 12px 28px; background: linear-gradient(135deg, rgba(0, 30, 60, 0.95), rgba(0, 20, 40, 0.95)); border: 2px solid var(--ocean-cyan); border-radius: 4px; color: #fff; font-family: 'Orbitron', monospace; font-size: 0.9rem; font-weight: 500; letter-spacing: 0.12em; pointer-events: none; z-index: 200; opacity: 0; transition: opacity 0.25s ease; backdrop-filter: blur(10px); box-shadow: 0 0 35px rgba(0, 212, 255, 0.4); white-space: nowrap; }
+        .object-label.visible { opacity: 1; }
+        .object-label::after { content: ''; position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 12px solid var(--ocean-cyan); }
+        .boundary-warning { position: fixed; top: 50%; left: 50%; transform: translate(-50%, 60px); padding: 12px 25px; background: rgba(255, 80, 80, 0.15); border: 2px solid rgba(255, 80, 80, 0.5); color: #ff6b6b; font-family: 'Orbitron', monospace; font-size: 0.85rem; letter-spacing: 0.15em; pointer-events: none; z-index: 180; opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(8px); }
+        .boundary-warning.visible { opacity: 1; }
+        #info-panel { position: fixed; top: 50%; right: -500px; transform: translateY(-50%); width: 450px; max-height: 80vh; background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(10, 30, 50, 0.95)); border-left: 3px solid var(--ocean-cyan); backdrop-filter: blur(20px); z-index: 200; pointer-events: auto; transition: right 0.6s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5); }
+        #info-panel.active { right: 0; }
+        .panel-header { padding: 30px; background: linear-gradient(180deg, rgba(0, 212, 255, 0.1), transparent); border-bottom: 1px solid rgba(0, 212, 255, 0.2); position: relative; }
+        .panel-title { font-family: 'Orbitron', monospace; font-size: 1.4rem; font-weight: 600; color: var(--ocean-cyan); margin-bottom: 8px; }
+        .panel-subtitle { font-size: 0.75rem; color: rgba(255, 255, 255, 0.4); letter-spacing: 0.25em; }
+        .panel-close { position: absolute; top: 25px; right: 25px; width: 40px; height: 40px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.5); cursor: pointer; font-size: 1.2rem; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; }
+        .panel-close:hover { border-color: var(--ocean-cyan); color: var(--ocean-cyan); }
+        .panel-content { padding: 30px; color: rgba(255, 255, 255, 0.8); line-height: 1.8; }
+        .panel-section { margin-bottom: 25px; }
+        .panel-section-title { font-family: 'Orbitron', monospace; font-size: 0.75rem; color: var(--bio-green); letter-spacing: 0.2em; margin-bottom: 12px; }
+        .tech-tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+        .tech-tag { padding: 8px 16px; background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.3); color: var(--ocean-cyan); font-size: 0.7rem; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .stat-item { background: rgba(255, 255, 255, 0.03); padding: 15px; border-left: 2px solid var(--ocean-cyan); }
+        .stat-value { font-family: 'Orbitron', monospace; font-size: 1.3rem; color: var(--ocean-cyan); }
+        .stat-label { font-size: 0.65rem; color: rgba(255, 255, 255, 0.4); margin-top: 5px; }
+        .water-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 97; background: radial-gradient(ellipse at 20% 20%, rgba(0, 212, 255, 0.03) 0%, transparent 50%); }
+        .vignette { position: fixed; inset: 0; pointer-events: none; z-index: 98; background: radial-gradient(ellipse at center, transparent 0%, transparent 40%, rgba(0, 10, 20, 0.6) 100%); }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loading-bubbles" id="loading-bubbles"></div>
+        <div class="loading-title">ABYSS</div>
+        <div class="loading-subtitle">DEEP SEA RESEARCH STATION</div>
+        <div class="loading-depth"><span class="depth-label">ПОГРУЖЕНИЕ</span><span class="depth-value" id="loading-depth">0</span><span class="depth-label">М</span></div>
+        <div class="loading-bar-container"><div class="loading-bar" id="loading-bar"></div></div>
+        <div class="loading-status" id="loading-status">Инициализация...</div>
+    </div>
+    <div id="canvas-container"></div>
+    <div class="water-overlay"></div>
+    <div class="vignette"></div>
+    <div class="click-prompt" id="click-prompt"><div class="click-prompt-text">НАЖМИТЕ ДЛЯ ВХОДА</div><div class="click-prompt-sub">Кликните для начала</div></div>
+    <div class="boundary-warning" id="boundary-warning">ГРАНИЦА СТАНЦИИ</div>
+    <div id="ui-overlay">
+        <div class="header"><div class="station-name">ABYSS STATION</div><div class="station-status"><div class="status-dot"></div><div class="status-text">СИСТЕМЫ В НОРМЕ</div></div></div>
+        <div class="depth-meter"><div class="depth-display"><span id="current-depth">2847</span><span> м</span></div><div class="depth-info">Зона абиссали</div></div>
+        <div class="controls-panel"><div class="controls-title">УПРАВЛЕНИЕ</div><div class="control-row"><span class="control-key">WASD</span><span class="control-desc">Движение</span></div><div class="control-row"><span class="control-key">МЫШЬ</span><span class="control-desc">Обзор</span></div><div class="control-row"><span class="control-key">SHIFT</span><span class="control-desc">Ускорение</span></div><div class="control-row"><span class="control-key">ЛКМ</span><span class="control-desc">Взаимодействие</span></div></div>
+        <div class="crosshair" id="crosshair"><div class="crosshair-ring"><div class="crosshair-line h left"></div><div class="crosshair-line h right"></div><div class="crosshair-line v top"></div><div class="crosshair-line v bottom"></div><div class="crosshair-dot"></div></div></div>
+    </div>
+    <div class="object-label" id="object-label">ОБЪЕКТ</div>
+    <div id="info-panel"><div class="panel-header"><div class="panel-title" id="panel-title">Объект</div><div class="panel-subtitle" id="panel-subtitle">Категория</div><button class="panel-close" onclick="closePanel()">✕</button></div><div class="panel-content" id="panel-content"></div></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, clock;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, moveUp = false, moveDown = false, sprint = false;
+        let velocity = new THREE.Vector3();
+        let euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        let isPointerLocked = false;
+        let raycaster, interactiveObjects = [];
+        let creatures = { sharks: [], mantas: [], turtles: [], jellyfishes: [], fishSchools: [], whales: [] };
+        let bubbles = [], floatingObjects = [];
+        let colliders = [];
+        
+        const BOUNDS = { minX: -20, maxX: 20, minZ: -16, maxZ: 16, minY: 1, maxY: 10 };
+        const INNER = { minX: -17, maxX: 17, minZ: -13, maxZ: 13, minY: 2, maxY: 9 };
+        
+        const objectData = {
+            'research-terminal': { title: 'Исследовательский терминал', subtitle: 'Центр данных', content: '<div class="panel-section"><p>Главный терминал станции для анализа данных.</p></div><div class="stat-grid"><div class="stat-item"><div class="stat-value">2.4 PB</div><div class="stat-label">Данных</div></div><div class="stat-item"><div class="stat-value">847</div><div class="stat-label">Видов</div></div></div>' },
+            'observation-dome': { title: 'Обзорный купол', subtitle: 'Панорамный обзор', content: '<div class="panel-section"><p>Купол из сверхпрочного акрила.</p></div><div class="stat-grid"><div class="stat-item"><div class="stat-value">180°</div><div class="stat-label">Обзор</div></div><div class="stat-item"><div class="stat-value">8K</div><div class="stat-label">Видео</div></div></div>' },
+            'bio-lab': { title: 'Биолаборатория', subtitle: 'Изучение жизни', content: '<div class="panel-section"><p>Лаборатория для изучения биолюминесцентных организмов.</p></div><div class="tech-tags"><span class="tech-tag">React</span><span class="tech-tag">D3.js</span></div>' },
+            'drone-bay': { title: 'Ангар дронов', subtitle: 'Автономные исследователи', content: '<div class="panel-section"><p>12 дронов исследуют дно в радиусе 50 км.</p></div><div class="stat-grid"><div class="stat-item"><div class="stat-value">12</div><div class="stat-label">Дронов</div></div><div class="stat-item"><div class="stat-value">72ч</div><div class="stat-label">Автономность</div></div></div>' },
+            'energy-core': { title: 'Энергоядро', subtitle: 'Термальный реактор', content: '<div class="panel-section"><p>Геотермальный реактор на 100 лет.</p></div><div class="stat-grid"><div class="stat-item"><div class="stat-value">50MW</div><div class="stat-label">Мощность</div></div><div class="stat-item"><div class="stat-value">99.97%</div><div class="stat-label">КПД</div></div></div>' },
+            'comm-array': { title: 'Массив связи', subtitle: 'Коммуникации', content: '<div class="panel-section"><p>Акустическая связь с квантовым шифрованием.</p></div><div class="stat-grid"><div class="stat-item"><div class="stat-value">1Gbps</div><div class="stat-label">Скорость</div></div><div class="stat-item"><div class="stat-value">&lt;50ms</div><div class="stat-label">Пинг</div></div></div>' }
+        };
+
+        init();
+
+        function init() {
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x001020);
+            scene.fog = new THREE.FogExp2(0x001525, 0.006);
+            
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 600);
+            camera.position.set(0, 2, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.8;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            raycaster = new THREE.Raycaster();
+            raycaster.far = 50;
+            
+            createLighting();
+            createStation();
+            createOceanLife();
+            createParticles();
+            setupEvents();
+            simulateLoading();
+        }
+
+        function createLighting() {
+            scene.add(new THREE.AmbientLight(0x003355, 0.5));
+            const sun = new THREE.DirectionalLight(0x0066aa, 0.3);
+            sun.position.set(0, 50, 0);
+            scene.add(sun);
+            
+            [[0x00d4ff, -12, 5, -10], [0x00ff88, 12, 4, -8], [0xff6b9d, -8, 3, 8], [0x9d4edd, 10, 5, 6], [0x00d4ff, 0, 8, 0]].forEach(([color, x, y, z]) => {
+                const light = new THREE.PointLight(color, 1.5, 30);
+                light.position.set(x, y, z);
+                scene.add(light);
+            });
+        }
+
+        function createStation() {
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 40), new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.8, roughness: 0.4 }));
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = 0;
+            scene.add(floor);
+            
+            const grid = new THREE.GridHelper(50, 50, 0x00d4ff, 0x0a1828);
+            grid.position.y = 0.01;
+            grid.material.opacity = 0.2;
+            grid.material.transparent = true;
+            scene.add(grid);
+            
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(50, 40), new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.7, roughness: 0.5 }));
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = 12;
+            scene.add(ceiling);
+            
+            const stripMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff });
+            [-10, -5, 0, 5, 10].forEach(z => {
+                const strip = new THREE.Mesh(new THREE.BoxGeometry(45, 0.1, 0.5), stripMat);
+                strip.position.set(0, 11.9, z);
+                scene.add(strip);
+            });
+            
+            createWalls();
+            createPillars();
+            createInteractive();
+        }
+
+        function createWalls() {
+            const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a3545, metalness: 0.9, roughness: 0.2 });
+            
+            [[-23, 6, 0, Math.PI / 2, 40, 12], [23, 6, 0, -Math.PI / 2, 40, 12], [0, 6, -18, 0, 46, 12], [0, 6, 18, Math.PI, 46, 12]].forEach(([x, y, z, rot, w, h]) => {
+                const group = new THREE.Group();
+                group.add(new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassMat));
+                for (let i = -w/2; i <= w/2; i += w/5) {
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.2, h, 0.2), frameMat);
+                    frame.position.x = i;
+                    group.add(frame);
+                }
+                group.position.set(x, y, z);
+                group.rotation.y = rot;
+                scene.add(group);
+            });
+        }
+
+        function createPillars() {
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x2a3545, metalness: 0.9, roughness: 0.2 });
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff });
+            
+            [[-16, -10], [16, -10], [-16, 10], [16, 10], [-8, -14], [8, -14], [-8, 14], [8, 14]].forEach(([x, z]) => {
+                const group = new THREE.Group();
+                const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 0.5, 12), pillarMat);
+                base.position.y = 0.25;
+                group.add(base);
+                const column = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 11, 12), pillarMat);
+                column.position.y = 6;
+                group.add(column);
+                [2, 5, 8, 11].forEach(h => {
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 8, 24), ringMat);
+                    ring.position.y = h;
+                    ring.rotation.x = Math.PI / 2;
+                    group.add(ring);
+                });
+                group.position.set(x, 0, z);
+                scene.add(group);
+                colliders.push({ x: x, z: z, radius: 0.8 });
+            });
+        }
+
+        function createInteractive() {
+            createTerminal(0, 0, -10, 'research-terminal', 'Исследовательский терминал');
+            colliders.push({ x: 0, z: -10, radius: 3.0 });
+            
+            createDome(-14, 0, 0, 'observation-dome', 'Обзорный купол');
+            colliders.push({ x: -14, z: 0, radius: 4.5 });
+            
+            createLab(14, 0, 0, 'bio-lab', 'Биолаборатория');
+            colliders.push({ x: 14, z: 0, radius: 3.0 });
+            
+            createDroneBay(-7, 0, 8, 'drone-bay', 'Ангар дронов');
+            colliders.push({ x: -7, z: 8, radius: 4.0 });
+            
+            createCore(7, 0, 8, 'energy-core', 'Энергоядро');
+            colliders.push({ x: 7, z: 8, radius: 3.0 });
+            
+            createComm(0, 8, -14, 'comm-array', 'Массив связи');
+        }
+
+        function createTerminal(x, y, z, id, name) {
+            const group = new THREE.Group();
+            group.userData = { id, interactive: true, name };
+            const mat = new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.85 });
+            
+            const base = new THREE.Mesh(new THREE.BoxGeometry(5, 1.2, 2.5), mat);
+            base.position.y = 0.6;
+            group.add(base);
+            
+            const screenFrame = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.2, 0.15), mat);
+            screenFrame.position.set(0, 2.8, 0.8);
+            screenFrame.rotation.x = -0.3;
+            group.add(screenFrame);
+            
+            const screen = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.8), new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.6 }));
+            screen.position.set(0, 2.8, 0.9);
+            screen.rotation.x = -0.3;
+            group.add(screen);
+            
+            const holo = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.05, 16, 48), new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.7 }));
+            holo.position.set(0, 4, 0);
+            holo.rotation.x = Math.PI / 2;
+            group.add(holo);
+            floatingObjects.push({ mesh: holo, baseY: 4, speed: 2, phase: 0, rotate: true, rotateSpeed: 1 });
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            interactiveObjects.push(group);
+        }
+
+        function createDome(x, y, z, id, name) {
+            const group = new THREE.Group();
+            group.userData = { id, interactive: true, name };
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x2a3545, metalness: 0.9 });
+            
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(4, 4.2, 0.5, 32), baseMat);
+            base.position.y = 0.25;
+            group.add(base);
+            
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(3.5, 48, 32, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide }));
+            dome.position.y = 0.5;
+            group.add(dome);
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            interactiveObjects.push(group);
+        }
+
+        function createLab(x, y, z, id, name) {
+            const group = new THREE.Group();
+            group.userData = { id, interactive: true, name };
+            const mat = new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.8 });
+            
+            const base = new THREE.Mesh(new THREE.BoxGeometry(5, 1, 2.5), mat);
+            base.position.y = 0.5;
+            group.add(base);
+            
+            [0x00ff88, 0xff6b9d, 0x9d4edd].forEach((c, i) => {
+                const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.8 }));
+                sphere.position.set(-1.5 + i * 1.5, 1.8, 0);
+                group.add(sphere);
+                floatingObjects.push({ mesh: sphere, baseY: 1.8, speed: 1.2 + i * 0.3, phase: i, amplitude: 0.15 });
+            });
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            interactiveObjects.push(group);
+        }
+
+        function createDroneBay(x, y, z, id, name) {
+            const group = new THREE.Group();
+            group.userData = { id, interactive: true, name };
+            
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.85 }));
+            group.add(base);
+            
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2 + 0.5;
+                const drone = new THREE.Group();
+                drone.add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshStandardMaterial({ color: 0x2a3545, metalness: 0.9 })));
+                const light = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ff88 }));
+                light.position.y = -0.35;
+                drone.add(light);
+                drone.position.set(Math.cos(angle) * 1.8, 1.5, Math.sin(angle) * 1.8);
+                group.add(drone);
+                floatingObjects.push({ mesh: drone, baseY: 1.5, speed: 0.7 + i * 0.2, phase: i, amplitude: 0.25 });
+            }
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            interactiveObjects.push(group);
+        }
+
+        function createCore(x, y, z, id, name) {
+            const group = new THREE.Group();
+            group.userData = { id, interactive: true, name };
+            
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.8, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.9 }));
+            base.position.y = 0.25;
+            group.add(base);
+            
+            [0x00d4ff, 0x00ff88, 0xff6b9d].forEach((c, i) => {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(2 - i * 0.3, 0.08, 12, 48), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.8 }));
+                ring.position.y = 2;
+                ring.rotation.set(Math.PI / 2 + i * 0.4, 0, i * 0.3);
+                group.add(ring);
+                floatingObjects.push({ mesh: ring, baseY: 2, speed: 0, phase: 0, rotate: true, rotateSpeed: 0.4 + i * 0.25, rotateAxis: i });
+            });
+            
+            const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8, 2), new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.9 }));
+            core.position.y = 2;
+            group.add(core);
+            floatingObjects.push({ mesh: core, baseY: 2, speed: 1.5, phase: 0, amplitude: 0.15, rotate: true, rotateSpeed: 0.3 });
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            interactiveObjects.push(group);
+        }
+
+        function createComm(x, y, z, id, name) {
+            const group = new THREE.Group();
+            group.userData = { id, interactive: true, name };
+            const mat = new THREE.MeshStandardMaterial({ color: 0x2a3545, metalness: 0.9 });
+            
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 5, 12), mat);
+            group.add(pole);
+            
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2;
+                const dish = new THREE.Mesh(new THREE.SphereGeometry(0.8, 24, 16, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x3a4555, metalness: 0.85, side: THREE.DoubleSide }));
+                dish.position.set(Math.cos(angle) * 1.8, i - 1, Math.sin(angle) * 1.8);
+                dish.lookAt(new THREE.Vector3(Math.cos(angle) * 5, i - 1 + 2, Math.sin(angle) * 5));
+                group.add(dish);
+            }
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            interactiveObjects.push(group);
+        }
+
+        function createOceanLife() {
+            // Профессиональные акулы - большие, снаружи
+            createProShark(-55, 15, -45, 4);
+            createProShark(60, 18, 35, 4.5);
+            createProShark(-45, 20, 55, 3.8);
+            createProShark(55, 12, -50, 4.2);
+            
+            createWhale(-120, 35, -100);
+            
+            createManta(-10, 6, -6, 0.35);
+            createManta(8, 5, 5, 0.3);
+            createTurtle(6, 4, -4, 0.4);
+            createTurtle(-8, 5, 7, 0.35);
+            
+            [[-6, 7, -5], [-2, 5, 7], [5, 8, -3], [10, 6, 4], [-12, 4, 0], [0, 9, 9], [3, 5, -9], [-5, 8, 3], [9, 7, -7], [-10, 5, 5]].forEach((p, i) => {
+                createJellyfish(p[0], p[1], p[2], 0.25 + (i % 3) * 0.1);
+            });
+            
+            createFishSchool(-8, 4, -4, 10);
+            createFishSchool(8, 6, 4, 12);
+            createFishSchool(-6, 7, 7, 8);
+            createFishSchool(10, 3, -6, 11);
+            
+            createBubbles();
+        }
+
+        // Профессиональная детализированная акула
+        function createProShark(x, y, z, scale = 1) {
+            const group = new THREE.Group();
+            
+            // Материалы
+            const bodyMat = new THREE.MeshStandardMaterial({ 
+                color: 0x5a6a7a, metalness: 0.3, roughness: 0.6
+            });
+            const bellyMat = new THREE.MeshStandardMaterial({ 
+                color: 0x8a9aaa, metalness: 0.2, roughness: 0.7
+            });
+            const finMat = new THREE.MeshStandardMaterial({ 
+                color: 0x4a5a6a, metalness: 0.35, roughness: 0.55
+            });
+            
+            // Основное тело - обтекаемая форма
+            const bodyGeom = new THREE.SphereGeometry(1, 32, 24);
+            bodyGeom.scale(3.5, 1, 0.9);
+            const body = new THREE.Mesh(bodyGeom, bodyMat);
+            group.add(body);
+            
+            // Живот (светлее)
+            const bellyGeom = new THREE.SphereGeometry(0.85, 24, 16);
+            bellyGeom.scale(3.2, 0.6, 0.75);
+            const belly = new THREE.Mesh(bellyGeom, bellyMat);
+            belly.position.y = -0.25;
+            group.add(belly);
+            
+            // Голова - конусообразная морда
+            const snoutGeom = new THREE.SphereGeometry(0.7, 24, 16);
+            snoutGeom.scale(1.8, 0.8, 0.75);
+            const snout = new THREE.Mesh(snoutGeom, bodyMat);
+            snout.position.x = 3.8;
+            group.add(snout);
+            
+            // Нос
+            const noseGeom = new THREE.ConeGeometry(0.35, 1.2, 16);
+            noseGeom.rotateZ(-Math.PI / 2);
+            const nose = new THREE.Mesh(noseGeom, bodyMat);
+            nose.position.set(5, 0, 0);
+            group.add(nose);
+            
+            // Спинной плавник - главный
+            const dorsalShape = new THREE.Shape();
+            dorsalShape.moveTo(0, 0);
+            dorsalShape.lineTo(-0.8, 0);
+            dorsalShape.quadraticCurveTo(-0.3, 1.8, 0.1, 2.2);
+            dorsalShape.quadraticCurveTo(0.3, 1.5, 0.5, 0);
+            dorsalShape.lineTo(0, 0);
+            
+            const dorsalGeom = new THREE.ExtrudeGeometry(dorsalShape, { depth: 0.15, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05 });
+            const dorsal = new THREE.Mesh(dorsalGeom, finMat);
+            dorsal.position.set(0.3, 0.85, -0.075);
+            dorsal.rotation.y = Math.PI;
+            group.add(dorsal);
+            
+            // Второй спинной (маленький)
+            const dorsal2Geom = new THREE.ConeGeometry(0.15, 0.5, 8);
+            const dorsal2 = new THREE.Mesh(dorsal2Geom, finMat);
+            dorsal2.position.set(-2.2, 0.7, 0);
+            dorsal2.rotation.z = 0.15;
+            group.add(dorsal2);
+            
+            // Хвостовой стебель
+            const tailStemGeom = new THREE.CylinderGeometry(0.5, 0.25, 2.5, 12);
+            tailStemGeom.rotateZ(Math.PI / 2);
+            const tailStem = new THREE.Mesh(tailStemGeom, bodyMat);
+            tailStem.position.x = -4;
+            group.add(tailStem);
+            
+            // Хвостовой плавник (группа для анимации)
+            const tailGroup = new THREE.Group();
+            
+            // Верхняя лопасть хвоста
+            const tailUpperShape = new THREE.Shape();
+            tailUpperShape.moveTo(0, 0);
+            tailUpperShape.quadraticCurveTo(-0.5, 1.5, -1.5, 2.8);
+            tailUpperShape.quadraticCurveTo(-1.2, 2.2, -0.8, 1.5);
+            tailUpperShape.quadraticCurveTo(-0.3, 0.8, 0, 0);
+            
+            const tailUpperGeom = new THREE.ExtrudeGeometry(tailUpperShape, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03 });
+            const tailUpper = new THREE.Mesh(tailUpperGeom, finMat);
+            tailUpper.position.set(-5.2, 0.2, -0.06);
+            tailGroup.add(tailUpper);
+            
+            // Нижняя лопасть хвоста
+            const tailLowerShape = new THREE.Shape();
+            tailLowerShape.moveTo(0, 0);
+            tailLowerShape.quadraticCurveTo(-0.3, -0.8, -0.8, -1.3);
+            tailLowerShape.quadraticCurveTo(-0.5, -0.9, -0.3, -0.5);
+            tailLowerShape.quadraticCurveTo(-0.1, -0.2, 0, 0);
+            
+            const tailLowerGeom = new THREE.ExtrudeGeometry(tailLowerShape, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02 });
+            const tailLower = new THREE.Mesh(tailLowerGeom, finMat);
+            tailLower.position.set(-5.2, -0.1, -0.05);
+            tailGroup.add(tailLower);
+            
+            group.add(tailGroup);
+            
+            // Грудные плавники
+            [-1, 1].forEach(side => {
+                const pectoralShape = new THREE.Shape();
+                pectoralShape.moveTo(0, 0);
+                pectoralShape.quadraticCurveTo(0.3, 0.8, 1.8, 1.2);
+                pectoralShape.quadraticCurveTo(1.2, 0.6, 0.5, 0.1);
+                pectoralShape.lineTo(0, 0);
+                
+                const pectoralGeom = new THREE.ExtrudeGeometry(pectoralShape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02 });
+                const pectoral = new THREE.Mesh(pectoralGeom, finMat);
+                pectoral.position.set(1.5, -0.5, side * 0.8);
+                pectoral.rotation.set(side * -0.4, side * 0.3, side * -0.7);
+                group.add(pectoral);
+            });
+            
+            // Брюшные плавники
+            [-1, 1].forEach(side => {
+                const pelvicGeom = new THREE.ConeGeometry(0.12, 0.6, 6);
+                const pelvic = new THREE.Mesh(pelvicGeom, finMat);
+                pelvic.position.set(-1, -0.6, side * 0.5);
+                pelvic.rotation.set(side * 0.3, 0, side * -0.5);
+                group.add(pelvic);
+            });
+            
+            // Анальный плавник
+            const analGeom = new THREE.ConeGeometry(0.1, 0.4, 6);
+            const anal = new THREE.Mesh(analGeom, finMat);
+            anal.position.set(-2.5, -0.5, 0);
+            anal.rotation.z = 0.2;
+            group.add(anal);
+            
+            // Глаза
+            const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+            const eyePupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            
+            [-1, 1].forEach(side => {
+                const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), eyeWhiteMat);
+                eyeWhite.position.set(3.2, 0.25, side * 0.65);
+                group.add(eyeWhite);
+                
+                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), eyePupilMat);
+                pupil.position.set(3.3, 0.25, side * 0.72);
+                group.add(pupil);
+            });
+            
+            // Жаберные щели
+            for (let i = 0; i < 5; i++) {
+                [-1, 1].forEach(side => {
+                    const gillGeom = new THREE.BoxGeometry(0.02, 0.35 - i * 0.03, 0.05);
+                    const gill = new THREE.Mesh(gillGeom, new THREE.MeshBasicMaterial({ color: 0x2a3545 }));
+                    gill.position.set(2.5 - i * 0.22, -0.05, side * 0.78);
+                    group.add(gill);
+                });
+            }
+            
+            // Боковая линия (сенсорная)
+            const lineGeom = new THREE.CylinderGeometry(0.015, 0.015, 5, 8);
+            lineGeom.rotateZ(Math.PI / 2);
+            const line = new THREE.Mesh(lineGeom, new THREE.MeshBasicMaterial({ color: 0x3a4a5a }));
+            line.position.set(0, 0.1, 0.85);
+            group.add(line);
+            const line2 = line.clone();
+            line2.position.z = -0.85;
+            group.add(line2);
+            
+            group.scale.setScalar(scale);
+            group.position.set(x, y, z);
+            scene.add(group);
+            
+            creatures.sharks.push({
+                mesh: group,
+                tailGroup,
+                basePos: new THREE.Vector3(x, y, z),
+                speed: 0.06 + Math.random() * 0.04,
+                radius: 50 + Math.random() * 30,
+                phase: Math.random() * Math.PI * 2,
+                yOffset: Math.random() * 8,
+                tailPhase: 0
+            });
+        }
+
+        function createManta(x, y, z, scale = 1) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x2d3748, metalness: 0.45, roughness: 0.55, side: THREE.DoubleSide });
+            
+            const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 20), mat);
+            body.scale.set(1.3, 0.2, 1.5);
+            group.add(body);
+            
+            const wingGeom = new THREE.SphereGeometry(1, 16, 8);
+            wingGeom.scale(2.5, 0.08, 1.2);
+            
+            const leftWing = new THREE.Mesh(wingGeom, mat);
+            leftWing.position.set(0, 0, 1.8);
+            group.add(leftWing);
+            
+            const rightWing = new THREE.Mesh(wingGeom.clone(), mat);
+            rightWing.position.set(0, 0, -1.8);
+            group.add(rightWing);
+            
+            [-1, 1].forEach(side => {
+                const horn = new THREE.Mesh(new THREE.ConeGeometry(0.15, 1, 8), mat);
+                horn.position.set(1.5, 0, side * 0.5);
+                horn.rotation.z = -Math.PI / 2;
+                horn.rotation.y = side * 0.4;
+                group.add(horn);
+            });
+            
+            const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.02, 4.5, 12), mat);
+            tail.rotation.z = Math.PI / 2;
+            tail.position.x = -2.5;
+            group.add(tail);
+            
+            group.scale.setScalar(scale);
+            group.position.set(x, y, z);
+            scene.add(group);
+            creatures.mantas.push({ mesh: group, leftWing, rightWing, basePos: new THREE.Vector3(x, y, z), speed: 0.3 + Math.random() * 0.2, radius: 4 + Math.random() * 2, phase: Math.random() * Math.PI * 2, wingPhase: 0 });
+        }
+
+        function createTurtle(x, y, z, scale = 1) {
+            const group = new THREE.Group();
+            const shellMat = new THREE.MeshStandardMaterial({ color: 0x4a6741, metalness: 0.35, roughness: 0.65 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0x6b8e5e, metalness: 0.25, roughness: 0.75 });
+            
+            const shell = new THREE.Mesh(new THREE.SphereGeometry(1.4, 24, 16), shellMat);
+            shell.scale.set(1.35, 0.55, 1.15);
+            shell.position.y = 0.15;
+            group.add(shell);
+            
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 16), skinMat);
+            head.scale.set(1.45, 1, 1);
+            head.position.set(1.65, 0.05, 0);
+            group.add(head);
+            
+            const flipperGeom = new THREE.SphereGeometry(0.3, 8, 6);
+            flipperGeom.scale(2, 0.3, 1);
+            
+            const fl = new THREE.Mesh(flipperGeom, skinMat);
+            fl.position.set(0.7, -0.08, 1.25);
+            fl.rotation.set(0.35, 0.55, 0.35);
+            group.add(fl);
+            
+            const fr = new THREE.Mesh(flipperGeom.clone(), skinMat);
+            fr.position.set(0.7, -0.08, -1.25);
+            fr.rotation.set(-0.35, -0.55, 0.35);
+            group.add(fr);
+            
+            group.scale.setScalar(scale);
+            group.position.set(x, y, z);
+            scene.add(group);
+            creatures.turtles.push({ mesh: group, fl, fr, basePos: new THREE.Vector3(x, y, z), speed: 0.2 + Math.random() * 0.1, radius: 3 + Math.random() * 2, phase: Math.random() * Math.PI * 2, flipperPhase: 0 });
+        }
+
+        function createWhale(x, y, z) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x2d3748, metalness: 0.35, roughness: 0.65 });
+            
+            const body = new THREE.Mesh(new THREE.SphereGeometry(5, 32, 20), mat);
+            body.scale.set(3.8, 1.15, 1.15);
+            group.add(body);
+            
+            const head = new THREE.Mesh(new THREE.SphereGeometry(3, 24, 20), mat);
+            head.scale.set(1.6, 1.15, 1.15);
+            head.position.x = 13;
+            group.add(head);
+            
+            const tailBase = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 0.7, 10, 16), mat);
+            tailBase.rotation.z = Math.PI / 2;
+            tailBase.position.x = -10;
+            group.add(tailBase);
+            
+            [-1, 1].forEach(side => {
+                const fluke = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 8), mat);
+                fluke.scale.set(2.5, 0.15, 1);
+                fluke.position.set(-16, side * 0.6, side * 2.5);
+                fluke.rotation.z = side * 0.3;
+                group.add(fluke);
+            });
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            creatures.whales.push({ mesh: group, basePos: new THREE.Vector3(x, y, z), speed: 0.015, radius: 100, phase: Math.random() * Math.PI * 2 });
+        }
+
+        function createJellyfish(x, y, z, scale = 0.5) {
+            const group = new THREE.Group();
+            const colors = [0xff6b9d, 0x9d4edd, 0x00d4ff, 0x00ff88];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            const bell = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: color, transparent: true, opacity: 0.5, emissive: color, emissiveIntensity: 0.4, side: THREE.DoubleSide }));
+            bell.scale.y = 0.75;
+            group.add(bell);
+            
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const tentacle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.008, 1.5 + Math.random(), 4), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5 }));
+                tentacle.position.set(Math.cos(angle) * 0.5, -0.8, Math.sin(angle) * 0.5);
+                group.add(tentacle);
+            }
+            
+            group.scale.setScalar(scale);
+            group.position.set(x, y, z);
+            scene.add(group);
+            creatures.jellyfishes.push({ mesh: group, bell, baseY: y, speed: 0.4 + Math.random() * 0.3, phase: Math.random() * Math.PI * 2, driftX: (Math.random() - 0.5) * 0.006, driftZ: (Math.random() - 0.5) * 0.006, pulsePhase: 0 });
+        }
+
+        function createFishSchool(x, y, z, count = 12) {
+            const group = new THREE.Group();
+            const colors = [0x00d4ff, 0x00ff88, 0xffd700, 0xff6b9d, 0x87ceeb];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            for (let i = 0; i < count; i++) {
+                const fish = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshStandardMaterial({ color: color, metalness: 0.55, roughness: 0.35 }));
+                body.scale.set(2, 1, 0.7);
+                fish.add(body);
+                const tail = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), new THREE.MeshStandardMaterial({ color: color }));
+                tail.rotation.z = Math.PI / 2;
+                tail.position.x = -0.14;
+                fish.add(tail);
+                fish.position.set((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 3);
+                group.add(fish);
+            }
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+            creatures.fishSchools.push({ mesh: group, basePos: new THREE.Vector3(x, y, z), speed: 0.5 + Math.random() * 0.3, radius: 2.5 + Math.random() * 1.5, phase: Math.random() * Math.PI * 2, yOffset: Math.random() });
+        }
+
+        function createBubbles() {
+            const bubbleGeom = new THREE.SphereGeometry(0.04, 8, 8);
+            const bubbleMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, metalness: 0.1, roughness: 0 });
+            
+            for (let i = 0; i < 80; i++) {
+                const bubble = new THREE.Mesh(bubbleGeom, bubbleMat.clone());
+                bubble.position.set((Math.random() - 0.5) * 32, Math.random() * 10 + 1, (Math.random() - 0.5) * 26);
+                bubble.scale.setScalar(0.3 + Math.random() * 1.2);
+                scene.add(bubble);
+                bubbles.push({ mesh: bubble, speed: 0.3 + Math.random() * 1.2, wobble: Math.random() * Math.PI * 2, wobbleSpeed: 1 + Math.random() * 2 });
+            }
+        }
+
+        function createParticles() {
+            const count = 3000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const particleColors = [new THREE.Color(0x00d4ff), new THREE.Color(0x00ff88), new THREE.Color(0xffffff)];
+            
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 38;
+                positions[i * 3 + 1] = Math.random() * 11;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 30;
+                const color = particleColors[Math.floor(Math.random() * particleColors.length)];
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            scene.add(new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.04, vertexColors: true, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending })));
+        }
+
+        function setupEvents() {
+            const container = document.getElementById('canvas-container');
+            
+            container.addEventListener('click', () => {
+                if (!isPointerLocked) container.requestPointerLock();
+                else checkInteraction();
+            });
+            
+            document.addEventListener('pointerlockchange', () => {
+                isPointerLocked = document.pointerLockElement === container;
+                document.getElementById('click-prompt').classList.toggle('hidden', isPointerLocked);
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (isPointerLocked) {
+                    euler.setFromQuaternion(camera.quaternion);
+                    euler.y -= e.movementX * 0.002;
+                    euler.x -= e.movementY * 0.002;
+                    euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+                    camera.quaternion.setFromEuler(euler);
+                }
+            });
+            
+            document.addEventListener('keydown', (e) => {
+                switch (e.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyD': moveRight = true; break;
+                    case 'Space': moveUp = true; e.preventDefault(); break;
+                    case 'ControlLeft': moveDown = true; break;
+                    case 'ShiftLeft': sprint = true; break;
+                    case 'Escape': closePanel(); break;
+                }
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                switch (e.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyD': moveRight = false; break;
+                    case 'Space': moveUp = false; break;
+                    case 'ControlLeft': moveDown = false; break;
+                    case 'ShiftLeft': sprint = false; break;
+                }
+            });
+            
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        function checkInteraction() {
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const hits = raycaster.intersectObjects(interactiveObjects, true);
+            if (hits.length > 0) {
+                let obj = hits[0].object;
+                while (obj) {
+                    if (obj.userData && obj.userData.interactive && objectData[obj.userData.id]) {
+                        openPanel(obj.userData.id);
+                        return;
+                    }
+                    obj = obj.parent;
+                }
+            }
+        }
+
+        function openPanel(id) {
+            const data = objectData[id];
+            document.getElementById('panel-title').textContent = data.title;
+            document.getElementById('panel-subtitle').textContent = data.subtitle;
+            document.getElementById('panel-content').innerHTML = data.content;
+            document.getElementById('info-panel').classList.add('active');
+        }
+
+        function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
+
+        function updateHover() {
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const hits = raycaster.intersectObjects(interactiveObjects, true);
+            const label = document.getElementById('object-label');
+            const crosshair = document.getElementById('crosshair');
+            
+            if (hits.length > 0) {
+                let obj = hits[0].object;
+                while (obj) {
+                    if (obj.userData && obj.userData.interactive) {
+                        crosshair.classList.add('active');
+                        label.textContent = obj.userData.name;
+                        label.classList.add('visible');
+                        return;
+                    }
+                    obj = obj.parent;
+                }
+            }
+            crosshair.classList.remove('active');
+            label.classList.remove('visible');
+        }
+
+        function checkCollision(newX, newZ) {
+            const playerRadius = 0.5;
+            for (const col of colliders) {
+                const dx = newX - col.x;
+                const dz = newZ - col.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < col.radius + playerRadius) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function simulateLoading() {
+            const bar = document.getElementById('loading-bar');
+            const screen = document.getElementById('loading-screen');
+            const depthEl = document.getElementById('loading-depth');
+            const statusEl = document.getElementById('loading-status');
+            const bubblesEl = document.getElementById('loading-bubbles');
+            
+            for (let i = 0; i < 35; i++) {
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble';
+                bubble.style.left = Math.random() * 100 + '%';
+                bubble.style.width = bubble.style.height = (5 + Math.random() * 20) + 'px';
+                bubble.style.animationDuration = (3 + Math.random() * 6) + 's';
+                bubble.style.animationDelay = Math.random() * 2 + 's';
+                bubblesEl.appendChild(bubble);
+            }
+            
+            const messages = ['Инициализация...', 'Проверка герметичности...', 'Запуск систем...', 'Сканирование фауны...', 'Подключение...'];
+            let progress = 0;
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 8;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        screen.classList.add('hidden');
+                        animate();
+                    }, 600);
+                }
+                bar.style.width = progress + '%';
+                depthEl.textContent = Math.floor(progress * 28.47);
+                statusEl.textContent = messages[Math.min(Math.floor(progress / 25), messages.length - 1)];
+            }, 85);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+            
+            if (isPointerLocked) {
+                const speed = sprint ? 12 : 6;
+                velocity.multiplyScalar(1 - 8 * delta);
+                
+                const direction = new THREE.Vector3(
+                    Number(moveRight) - Number(moveLeft),
+                    Number(moveUp) - Number(moveDown),
+                    Number(moveForward) - Number(moveBackward)
+                ).normalize();
+                
+                if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+                if (moveUp || moveDown) velocity.y += direction.y * speed * delta;
+                
+                const oldX = camera.position.x;
+                const oldZ = camera.position.z;
+                
+                camera.translateX(-velocity.x);
+                camera.translateZ(velocity.z);
+                
+                if (checkCollision(camera.position.x, camera.position.z)) {
+                    camera.position.x = oldX;
+                    camera.position.z = oldZ;
+                }
+                
+                camera.position.y += velocity.y;
+                
+                let atBoundary = false;
+                if (camera.position.x < BOUNDS.minX) { camera.position.x = BOUNDS.minX; atBoundary = true; }
+                if (camera.position.x > BOUNDS.maxX) { camera.position.x = BOUNDS.maxX; atBoundary = true; }
+                if (camera.position.z < BOUNDS.minZ) { camera.position.z = BOUNDS.minZ; atBoundary = true; }
+                if (camera.position.z > BOUNDS.maxZ) { camera.position.z = BOUNDS.maxZ; atBoundary = true; }
+                if (camera.position.y < BOUNDS.minY) { camera.position.y = BOUNDS.minY; atBoundary = true; }
+                if (camera.position.y > BOUNDS.maxY) { camera.position.y = BOUNDS.maxY; atBoundary = true; }
+                
+                document.getElementById('boundary-warning').classList.toggle('visible', atBoundary);
+            }
+            
+            document.getElementById('current-depth').textContent = 2847 + Math.floor(camera.position.y * 5);
+            
+            // Акулы
+            creatures.sharks.forEach(s => {
+                const t = time * s.speed + s.phase;
+                s.mesh.position.x = s.basePos.x + Math.cos(t) * s.radius;
+                s.mesh.position.z = s.basePos.z + Math.sin(t) * s.radius;
+                s.mesh.position.y = s.basePos.y + Math.sin(t * 0.5) * s.yOffset;
+                s.mesh.rotation.y = t + Math.PI / 2;
+                s.tailPhase += delta * 4;
+                if (s.tailGroup) s.tailGroup.rotation.y = Math.sin(s.tailPhase) * 0.25;
+            });
+            
+            // Манты
+            creatures.mantas.forEach(m => {
+                const t = time * m.speed + m.phase;
+                m.mesh.position.x = m.basePos.x + Math.cos(t) * m.radius;
+                m.mesh.position.z = m.basePos.z + Math.sin(t) * m.radius;
+                m.mesh.position.y = m.basePos.y + Math.sin(t * 0.7) * 0.8;
+                m.mesh.rotation.y = t + Math.PI / 2;
+                m.wingPhase += delta * 2.2;
+                const wingAngle = Math.sin(m.wingPhase) * 0.2;
+                if (m.leftWing) m.leftWing.rotation.x = wingAngle;
+                if (m.rightWing) m.rightWing.rotation.x = -wingAngle;
+                m.mesh.position.x = Math.max(INNER.minX, Math.min(INNER.maxX, m.mesh.position.x));
+                m.mesh.position.z = Math.max(INNER.minZ, Math.min(INNER.maxZ, m.mesh.position.z));
+            });
+            
+            // Черепахи
+            creatures.turtles.forEach(tu => {
+                const t = time * tu.speed + tu.phase;
+                tu.mesh.position.x = tu.basePos.x + Math.cos(t) * tu.radius;
+                tu.mesh.position.z = tu.basePos.z + Math.sin(t) * tu.radius;
+                tu.mesh.position.y = tu.basePos.y + Math.sin(t * 0.3) * 0.6;
+                tu.mesh.rotation.y = t + Math.PI / 2;
+                tu.flipperPhase += delta * 3;
+                const flipperAngle = Math.sin(tu.flipperPhase) * 0.55;
+                if (tu.fl) tu.fl.rotation.z = 0.35 + flipperAngle;
+                if (tu.fr) tu.fr.rotation.z = 0.35 - flipperAngle;
+                tu.mesh.position.x = Math.max(INNER.minX, Math.min(INNER.maxX, tu.mesh.position.x));
+                tu.mesh.position.z = Math.max(INNER.minZ, Math.min(INNER.maxZ, tu.mesh.position.z));
+            });
+            
+            // Кит
+            creatures.whales.forEach(w => {
+                const t = time * w.speed + w.phase;
+                w.mesh.position.x = w.basePos.x + Math.cos(t) * w.radius;
+                w.mesh.position.z = w.basePos.z + Math.sin(t) * w.radius;
+                w.mesh.position.y = w.basePos.y + Math.sin(t * 0.2) * 8;
+                w.mesh.rotation.y = t + Math.PI / 2;
+            });
+            
+            // Медузы
+            creatures.jellyfishes.forEach(j => {
+                j.mesh.position.y = j.baseY + Math.sin(time * j.speed + j.phase) * 1.2;
+                j.mesh.position.x += j.driftX;
+                j.mesh.position.z += j.driftZ;
+                j.pulsePhase += delta * 2.2;
+                const pulse = 1 + Math.sin(j.pulsePhase) * 0.2;
+                if (j.bell) {
+                    j.bell.scale.y = 0.75 * pulse;
+                    j.bell.scale.x = j.bell.scale.z = 1 / pulse;
+                }
+                if (j.mesh.position.x > INNER.maxX) { j.mesh.position.x = INNER.maxX; j.driftX *= -1; }
+                if (j.mesh.position.x < INNER.minX) { j.mesh.position.x = INNER.minX; j.driftX *= -1; }
+                if (j.mesh.position.z > INNER.maxZ) { j.mesh.position.z = INNER.maxZ; j.driftZ *= -1; }
+                if (j.mesh.position.z < INNER.minZ) { j.mesh.position.z = INNER.minZ; j.driftZ *= -1; }
+            });
+            
+            // Косяки рыб
+            creatures.fishSchools.forEach(f => {
+                const t = time * f.speed + f.phase;
+                f.mesh.position.x = f.basePos.x + Math.cos(t) * f.radius;
+                f.mesh.position.z = f.basePos.z + Math.sin(t) * f.radius;
+                f.mesh.position.y = f.basePos.y + Math.sin(t * 0.5) * f.yOffset;
+                f.mesh.rotation.y = t + Math.PI / 2;
+                f.mesh.position.x = Math.max(INNER.minX, Math.min(INNER.maxX, f.mesh.position.x));
+                f.mesh.position.z = Math.max(INNER.minZ, Math.min(INNER.maxZ, f.mesh.position.z));
+            });
+            
+            // Пузыри
+            bubbles.forEach(b => {
+                b.mesh.position.y += b.speed * delta;
+                b.wobble += delta * b.wobbleSpeed;
+                b.mesh.position.x += Math.sin(b.wobble) * 0.02;
+                if (b.mesh.position.y > 11) {
+                    b.mesh.position.y = 1;
+                    b.mesh.position.x = (Math.random() - 0.5) * 32;
+                    b.mesh.position.z = (Math.random() - 0.5) * 26;
+                }
+            });
+            
+            // Плавающие объекты
+            floatingObjects.forEach(obj => {
+                const amplitude = obj.amplitude || 0.35;
+                obj.mesh.position.y = obj.baseY + Math.sin(time * obj.speed + obj.phase) * amplitude;
+                if (obj.rotate) {
+                    const rotSpeed = obj.rotateSpeed || 1;
+                    if (obj.rotateAxis === 0) obj.mesh.rotation.x += delta * rotSpeed;
+                    else if (obj.rotateAxis === 1) obj.mesh.rotation.y += delta * rotSpeed;
+                    else if (obj.rotateAxis === 2) obj.mesh.rotation.z += delta * rotSpeed;
+                    else obj.mesh.rotation.y += delta * rotSpeed;
+                }
+            });
+            
+            if (isPointerLocked) updateHover();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
